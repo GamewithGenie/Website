@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PDF to PNG Converter</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.0/jszip.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      text-align: center;
+      padding: 20px;
+      background: url('comic-abstract-blue-background_225004-669.jpg') no-repeat center center fixed;
+      background-size: cover;
+      color: #fff;
+      position: relative;
+    }
+    h1 {
+      margin-bottom: 20px;
+      font-size: 2.5rem;
+      text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.8);
+    }
+    .upload-box {
+      border: 3px dashed #fff;
+      padding: 50px;
+      margin: 0 auto 30px auto;
+      cursor: pointer;
+      max-width: 600px;
+      background-color: rgba(0, 0, 0, 0.5);
+      color: #fff;
+      font-size: 1.2rem;
+      border-radius: 15px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      transition: background 0.3s ease;
+    }
+    .upload-box:hover {
+      background-color: rgba(255,255,255,0.1);
+    }
+    #progress-container {
+      display: none;
+      margin: 20px auto;
+      width: 80%;
+      max-width: 600px;
+      background-color: rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    }
+    #progress-bar {
+      width: 0%;
+      height: 40px;
+      background: linear-gradient(90deg, #00c6ff, #0072ff);
+      transition: width 0.3s ease-in-out;
+    }
+    #progress-info {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 15px;
+      font-weight: bold;
+      font-size: 15px;
+      z-index: 1;
+      color: #fff;
+      background: rgba(0,0,0,0.3);
+    }
+    #convertBtn, #downloadBtn, #nextBtn, #togglePauseBtn {
+      display: none;
+      margin: 10px;
+      padding: 12px 28px;
+      font-size: 16px;
+      cursor: pointer;
+      background-color: #00aaff;
+      border: none;
+      color: white;
+      border-radius: 8px;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+      transition: background 0.3s ease;
+    }
+    #convertBtn:hover, #downloadBtn:hover, #nextBtn:hover, #togglePauseBtn:hover {
+      background-color: #008fcc;
+    }
+    #infoBtn {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      width: 40px;
+      height: 40px;
+      background: rgba(255, 255, 255, 0.9);
+      color: black;
+      font-size: 18px;
+      font-weight: bold;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      z-index: 10;
+    }
+    #infoPopup {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.95);
+      color: white;
+      padding: 20px;
+      border-radius: 10px;
+      width: 80%;
+      max-width: 400px;
+      text-align: center;
+      box-shadow: 0 4px 10px rgba(255, 255, 255, 0.3);
+      z-index: 20;
+    }
+    #infoPopup span {
+      font-size: 14px;
+      display: block;
+      margin-top: 15px;
+      text-align: right;
+      color: #ccc;
+    }
+    #successMessage {
+      display: none;
+      font-size: 1.2rem;
+      color: #0f0;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>📄 PDF to PNG Converter</h1>
+
+  <button id="infoBtn">ℹ</button>
+  <div id="infoPopup">
+    Hi! This is a free tool made to help everybody around,<br>
+    just drag the PDF and download PNGs in a couple of seconds.
+    <span>Made By M.Abdullah Aftab</span>
+  </div>
+
+  <div class="upload-box" id="uploadBox">📁 Drag & Drop or Click to Upload PDF</div>
+  <input type="file" id="fileInput" accept="application/pdf" style="display:none">
+  <p id="successMessage">✔ File uploaded successfully</p>
+  <button id="convertBtn">🚀 Convert</button>
+
+  <div id="progress-container">
+    <div id="progress-info">
+      <span id="progress-text">0%</span>
+      <span id="time-text">Estimating...</span>
+    </div>
+    <div id="progress-bar"></div>
+  </div>
+
+  <button id="downloadBtn">⬇️ Download ZIP</button>
+  <button id="nextBtn">🔄 Convert Next</button>
+
+  <script>
+    const infoBtn = document.getElementById('infoBtn');
+    const infoPopup = document.getElementById('infoPopup');
+    const uploadBox = document.getElementById('uploadBox');
+    const fileInput = document.getElementById('fileInput');
+    const successMessage = document.getElementById('successMessage');
+    const convertBtn = document.getElementById('convertBtn');
+    const progressContainer = document.getElementById('progress-container');
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
+    const timeText = document.getElementById('time-text');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const nextBtn = document.getElementById('nextBtn');
+
+    let pdfFile = null;
+    let paused = false;
+
+    infoBtn.addEventListener('click', () => {
+      infoPopup.style.display = infoPopup.style.display === 'block' ? 'none' : 'block';
+    });
+
+    uploadBox.addEventListener('click', () => fileInput.click());
+    uploadBox.addEventListener('dragover', e => {
+      e.preventDefault();
+      uploadBox.style.background = 'rgba(255,255,255,0.2)';
+    });
+    uploadBox.addEventListener('dragleave', () => {
+      uploadBox.style.background = 'rgba(0,0,0,0.5)';
+    });
+
+    uploadBox.addEventListener('drop', e => {
+      e.preventDefault();
+      handleFileUpload(e.dataTransfer.files[0]);
+    });
+
+    fileInput.addEventListener('change', e => {
+      handleFileUpload(e.target.files[0]);
+    });
+
+    function handleFileUpload(file) {
+      if (file && file.type === 'application/pdf') {
+        pdfFile = file;
+        uploadBox.style.display = 'none';
+        successMessage.style.display = 'block';
+        convertBtn.style.display = 'inline-block';
+      } else {
+        alert("File didn't upload error. Please upload a valid PDF.");
+      }
+    }
+
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}m ${secs}s`;
+    }
+
+    convertBtn.addEventListener('click', async () => {
+      convertBtn.style.display = 'none';
+      progressContainer.style.display = 'block';
+
+      const reader = new FileReader();
+      reader.onload = async function () {
+        const pdfData = new Uint8Array(this.result);
+        const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+        const zip = new JSZip();
+        const totalPages = pdf.numPages;
+        const startTime = Date.now();
+
+        for (let i = 1; i <= totalPages; i++) {
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({ scale: 2 });
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+
+          await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+
+          const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+          zip.file(`${i}.png`, blob);
+
+          const progress = Math.floor((i / totalPages) * 100);
+          progressBar.style.width = `${progress}%`;
+          progressText.textContent = `${progress}% complete`;
+
+          const elapsed = (Date.now() - startTime) / 1000;
+          const remaining = ((elapsed / i) * (totalPages - i));
+          timeText.textContent = `~${formatTime(remaining)}`;
+        }
+
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const zipURL = URL.createObjectURL(zipBlob);
+        const a = document.createElement('a');
+        a.href = zipURL;
+        a.download = 'converted_images.zip';
+        a.click();
+
+        downloadBtn.style.display = 'inline-block';
+        nextBtn.style.display = 'inline-block';
+        progressContainer.style.display = 'none';
+      };
+      reader.readAsArrayBuffer(pdfFile);
+    });
+
+    nextBtn.addEventListener('click', () => location.reload());
+  </script>
+</body>
+</html>
